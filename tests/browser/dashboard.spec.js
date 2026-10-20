@@ -9,7 +9,7 @@ test('Roles, slice filters, metric detail, empty states and export work',async({
  await page.getByLabel('Грейд',{exact:true}).selectOption('Middle');await expect(page.getByText('По этим фильтрам нет данных')).toBeVisible();
  await page.getByRole('button',{name:'Показать все данные'}).click();
  await page.getByRole('button',{name:/Нанимающий руководитель/}).click();await expect(page.getByRole('heading',{name:'Вакансии и решения.'})).toBeVisible();
- await page.getByRole('button',{name:'Детали: Tech Lead ML'}).click();await expect(page.getByRole('dialog')).toContainText('Подтвердить финальное интервью');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
+ await page.getByRole('button',{name:'Детали: Tech Lead ML'}).click();await expect(page.getByRole('dialog')).toContainText('бронируют финал и запасного интервьюера');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
  await page.getByLabel('Поиск вакансии').fill('zzzz');await expect(page.getByText('Вакансии не найдены. Измените поиск или фильтры.')).toBeVisible();
  await page.getByRole('button',{name:'Рекрутмент Воронка и процессы'}).click();await page.getByLabel('Направление',{exact:true}).selectOption('all');
  await expect(page.getByRole('heading',{name:'Источники кандидатов'})).toBeVisible();
@@ -71,3 +71,22 @@ test('People filters, first stage, TTF and offer refusal reasons',async({page})=
  await page.getByLabel('Рекрутер',{exact:true}).selectOption('all');
  await page.screenshot({path:'/tmp/mws-recruitment-desktop.png',fullPage:true});
  });
+
+test('Methodology matches the presentation and distinguishes probation exits',async({page})=>{
+ await page.goto('/');
+ await expect(page.locator('.kpi').nth(1)).toContainText('23');
+ await expect(page.locator('.kpi').nth(1)).toContainText('медиана');
+ await expect(page.locator('.quality-detail').getByText(/Уходы на ИС/)).toBeVisible();
+ await expect(page.getByRole('button',{name:'Ожидания совпали: 89%'})).toBeVisible();
+ await page.getByRole('button',{name:'Методика и источники'}).click();
+ const dialog=page.getByRole('dialog');await expect(dialog.locator('.method-row')).toHaveCount(7);
+ await expect(dialog).toContainText('уходы после ИС к ним не относятся');
+ await dialog.getByRole('button',{name:/Quality of Hire/}).click();await expect(dialog).toContainText('по последний день ИС');
+ await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Рекрутмент Воронка и процессы'}).click();
+ await expect(page.getByText('Из этой воронки вышли 9 сотрудников.',{exact:false})).toBeVisible();
+ await expect(page.getByText('Дольше 2 рабочих дней:',{exact:false})).toBeVisible();
+ const dl=page.waitForEvent('download');await page.getByRole('button',{name:'Выгрузить CSV'}).click();
+ const stream=await (await dl).createReadStream();let csv='';for await(const chunk of stream)csv+=chunk.toString();
+ expect(csv).toContain('Уходы на ИС');expect(csv).toContain('TTF — медиана, раб. дни');expect(csv).not.toContain('undefined');
+});
