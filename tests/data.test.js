@@ -15,3 +15,17 @@ test('Cohorts stay internally consistent for every filter and period',()=>{
  assert.equal(a.hires,3);assert.equal(a.plan,3);assert.equal(a.hr,80);
 });
 test('Empty slices never manufacture rates or costs',()=>{const a=aggregate([]);assert.equal(a.planRate,null);assert.equal(a.cph,null);assert.equal(a.ttf,null);assert.equal(a.quality,null);assert.equal(pct(0,0),null)});
+
+test('First-stage conversion and refusal reasons reconcile under people filters',async()=>{
+ const {selectRecords,recruiters,managers,rejectionGroups}=await import('../src/data.js');
+ const all=aggregate(selectRecords());assert.equal(all.initial,600);assert.equal(all.screenRate,40);assert.equal(all.rejected,3);
+ for(const period of ['october','september','august'])for(const recruiter of ['all',...recruiters])for(const manager of ['all',...managers]){
+  const rows=selectRecords({period,recruiter,manager});const a=aggregate(rows);
+  assert.equal(rejectionGroups.reduce((n,g)=>n+a.rejections[g.id],0),a.offers-a.accepted);
+  for(const r of rows){assert.ok(r.initial>=r.hr);assert.ok(recruiter==='all'||r.recruiter===recruiter);assert.ok(manager==='all'||r.manager===manager);}
+ }
+ const parts=recruiters.map(recruiter=>aggregate(selectRecords({recruiter})));
+ assert.equal(parts.reduce((n,p)=>n+p.initial,0),all.initial);
+ assert.equal(parts.reduce((n,p)=>n+p.rejected,0),all.rejected);
+ assert.equal(aggregate([]).screenRate,null);
+});

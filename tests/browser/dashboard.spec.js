@@ -6,7 +6,7 @@ test('Roles, slice filters, metric detail, empty states and export work',async({
  await page.locator('.kpi').first().click();await expect(page.getByRole('dialog')).toContainText('Действия при отклонении');
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
  await page.getByLabel('Направление',{exact:true}).selectOption('ML');await expect(page.locator('.kpi-value').first()).toHaveText('100%');
- await page.getByLabel('Грейд',{exact:true}).selectOption('Middle');await expect(page.getByText('Нет данных для этого среза')).toBeVisible();
+ await page.getByLabel('Грейд',{exact:true}).selectOption('Middle');await expect(page.getByText('По этим фильтрам нет данных')).toBeVisible();
  await page.getByRole('button',{name:'Показать все данные'}).click();
  await page.getByRole('button',{name:/Нанимающий руководитель/}).click();await expect(page.getByRole('heading',{name:'Вакансии и решения.'})).toBeVisible();
  await page.getByRole('button',{name:'Детали: Tech Lead ML'}).click();await expect(page.getByRole('dialog')).toContainText('Подтвердить финальное интервью');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
@@ -27,3 +27,47 @@ test('Desktop and mobile layout and screenshots',async({page})=>{
  await page.getByRole('button',{name:/Нанимающий руководитель/}).click();await expect(page.getByRole('heading',{name:'Вакансии и решения.'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+test('People filters, first stage, TTF and offer refusal reasons',async({page})=>{
+ await page.goto('/');
+ await page.getByLabel('Нанимающий менеджер',{exact:true}).selectOption('Коммерческий директор');
+ await expect(page.locator('.kpi').first()).toContainText('Выходы: 2 / план: 2');
+ await expect(page.locator('tbody tr')).toHaveCount(1);
+ await page.getByRole('button',{name:'Рекрутмент Воронка и процессы'}).click();
+ await expect(page.locator('.kpi')).toHaveCount(6);
+ await expect(page.locator('.kpi').first()).toContainText('Первичный → HR-скрининг');
+ await expect(page.locator('.kpi').first()).toContainText('40%');
+ await expect(page.locator('.kpi').nth(1)).toContainText('Time to Fill');
+ await expect(page.getByText('Одна когорта кандидатов')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Первичный этап: 600'})).toBeVisible();
+ const panel=page.locator('.panel').filter({has:page.getByRole('heading',{name:'Почему отказались от оффера'})});
+ await expect(panel).toContainText('Офферы с решением: 15 · Отказы: 3');await expect(panel.locator('.rejection-row')).toHaveCount(5);
+ await page.getByLabel('Рекрутер',{exact:true}).selectOption('Мария');
+ await expect(page.locator('.kpi').first()).toContainText('72 / 184 кандидатов');
+ await expect(panel).toContainText('Офферы с решением: 4 · Отказы: 2');
+ await expect(page.locator('tbody tr').last()).toContainText('Мария');
+ await panel.getByRole('button',{name:/Зарплата и условия оффера/}).click();await expect(page.getByRole('dialog')).toContainText('1 из 2 отказов · 50%');await page.keyboard.press('Escape');
+ const dl=page.waitForEvent('download');await page.getByRole('button',{name:'Выгрузить CSV'}).click();
+ const download=await dl;const stream=await download.createReadStream();let csv='';for await(const chunk of stream)csv+=chunk.toString();
+ expect(csv).toContain('Первичный этап');expect(csv).toContain('Отказы: Зарплата и условия оффера');expect(csv).toContain('Мария');expect(csv).not.toContain('Елена');
+ await page.reload();await expect(page.getByLabel('Рекрутер',{exact:true})).toHaveValue('Мария');
+ await page.getByRole('button',{name:'Нанимающий руководитель Вакансии и решения'}).click();
+ await expect(page.getByRole('heading',{name:'Почему отказались от оффера'})).toBeVisible();await expect(panel).toContainText('Офферы с решением: 4 · Отказы: 1');
+ await page.getByRole('button',{name:'C-level Общий результат'}).click();await expect(page.getByLabel('Нанимающий менеджер',{exact:true})).toHaveValue('Коммерческий директор');
+ await expect(page.getByRole('heading',{name:'По этим фильтрам нет данных'})).toBeVisible();
+ await page.getByLabel('Направление',{exact:true}).selectOption('all');
+ await expect(page.locator('.kpi').first()).toContainText('Выходы: 2 / план: 2');
+});
+
+ test('New controls remain usable on a phone',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await page.goto('/?view=recruitment');
+ await page.getByLabel('Рекрутер',{exact:true}).selectOption('Мария');
+ await expect(page.locator('.kpi')).toHaveCount(6);
+ await expect(page.getByRole('heading',{name:'Почему отказались от оффера'})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'/tmp/mws-recruitment-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:1100});
+ await page.getByLabel('Рекрутер',{exact:true}).selectOption('all');
+ await page.screenshot({path:'/tmp/mws-recruitment-desktop.png',fullPage:true});
+ });
